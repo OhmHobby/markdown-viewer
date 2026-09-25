@@ -71,8 +71,15 @@ if ($LASTEXITCODE) { throw 'Compiling MarkdownViewer.exe failed' }
 
 $zip = Join-Path $root "dist\MarkdownViewer-$version-win-x64.zip"
 if (Test-Path $zip) { Remove-Item $zip }
-Add-Type -AssemblyName System.IO.Compression.FileSystem
-[IO.Compression.ZipFile]::CreateFromDirectory($dist, $zip, 'Optimal', $true)
+# Entry names use "/" (Windows PowerShell's ZipFile.CreateFromDirectory would write "\", which other unzip tools mangle).
+Add-Type -AssemblyName System.IO.Compression, System.IO.Compression.FileSystem
+$archive = [IO.Compression.ZipFile]::Open($zip, 'Create')
+try {
+    foreach ($file in Get-ChildItem -Recurse -File $dist) {
+        $entry = 'MarkdownViewer/' + $file.FullName.Substring($dist.Length + 1).Replace('\', '/')
+        [void][IO.Compression.ZipFileExtensions]::CreateEntryFromFile($archive, $file.FullName, $entry, 'Optimal')
+    }
+} finally { $archive.Dispose() }
 
 $size = (Get-ChildItem -Recurse -File $dist | Measure-Object Length -Sum).Sum / 1MB
 Write-Host ("Built Markdown Viewer {0}: {1} ({2:N1} MB)" -f $version, $dist, $size)
