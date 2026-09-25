@@ -1,0 +1,587 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Markdown Viewer</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 208 128'%3E%3Crect width='208' height='128' rx='22' fill='%232563eb'/%3E%3Cpath fill='white' d='M30 98V30h20l20 25 20-25h20v68H90V59L70 84 50 59v39zm125 0l-30-33h20V30h20v35h20z'/%3E%3C/svg%3E">
+<script>try{var t=localStorage.getItem('md-theme');if(t)document.documentElement.dataset.theme=t}catch(e){}</script>
+<style>
+:root{
+  --bg:#fcfcfb; --fg:#1f2328; --muted:#5f6670; --faint:#8b929a; --line:#e2e4e1; --soft:#f3f4f2;
+  --code:#eef0ee; --accent:#2563eb; --bar:rgba(252,252,251,.86); --imgbg:transparent; --imgpad:0;
+  --mono:"Cascadia Code","Cascadia Mono",Consolas,ui-monospace,monospace;
+  color-scheme:light;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme=light]){
+  --bg:#121416; --fg:#e3e5e8; --muted:#a0a6ad; --faint:#737a82; --line:#2b2f34; --soft:#1a1d20;
+  --code:#23272b; --accent:#7aa7ff; --bar:rgba(18,20,22,.86); --imgbg:#fff; --imgpad:6px; color-scheme:dark;
+}}
+:root[data-theme=dark]{
+  --bg:#121416; --fg:#e3e5e8; --muted:#a0a6ad; --faint:#737a82; --line:#2b2f34; --soft:#1a1d20;
+  --code:#23272b; --accent:#7aa7ff; --bar:rgba(18,20,22,.86); --imgbg:#fff; --imgpad:6px; color-scheme:dark;
+}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--bg);color:var(--fg);
+  font:16.5px/1.75 "Segoe UI Variable Text","Segoe UI","Leelawadee UI","Noto Sans Thai",system-ui,-apple-system,sans-serif;
+  -webkit-font-smoothing:antialiased}
+
+/* top bar */
+#bar{position:sticky;top:0;z-index:10;display:flex;align-items:center;gap:6px;height:52px;padding:0 12px 0 14px;
+  background:var(--bar);-webkit-backdrop-filter:saturate(1.5) blur(10px);backdrop-filter:saturate(1.5) blur(10px);border-bottom:1px solid var(--line)}
+#home{display:grid;place-items:center;flex:none;padding:6px;margin-right:2px;border-radius:7px;color:var(--accent)}
+#home:hover{background:var(--soft)}
+#home svg{width:27px;height:17px;fill:currentColor}
+#crumbs{display:flex;align-items:center;gap:7px;min-width:0;font-size:14px;white-space:nowrap;overflow:hidden}
+#crumbs a{color:var(--muted);text-decoration:none}
+#crumbs a:hover{color:var(--fg)}
+#crumbs .sep{color:var(--faint)}
+#crumbs .cur{font-weight:600;overflow:hidden;text-overflow:ellipsis}
+.grow{flex:1}
+#st{display:inline-flex;align-items:center;gap:7px;margin-right:6px;font-size:12.5px;color:var(--faint);white-space:nowrap}
+#st i{width:7px;height:7px;border-radius:50%;background:var(--faint)}
+#st.live i{background:#22a06b}
+#st.err i{background:#e5484d}
+#st.flash i{animation:ping 1.1s ease-out}
+@keyframes ping{from{box-shadow:0 0 0 0 rgba(34,160,107,.55)}to{box-shadow:0 0 0 9px rgba(34,160,107,0)}}
+.btn{display:inline-grid;place-items:center;flex:none;width:34px;height:34px;padding:0;border:0;border-radius:8px;background:none;color:var(--muted);cursor:pointer}
+.btn:hover{background:var(--soft);color:var(--fg)}
+.btn svg,.ic{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round}
+@media (max-width:560px){#st span,#crumbs .mid{display:none}}
+
+/* layout */
+main{max-width:800px;margin:0 auto;padding:44px 28px 128px}
+@media (max-width:600px){main{padding:26px 16px 96px}body{font-size:16px}}
+#toc{position:fixed;top:84px;left:calc(50% - 400px - 250px);width:220px;max-height:calc(100vh - 110px);overflow:auto;
+  font-size:13px;line-height:1.45;display:none}
+@media (min-width:1320px){#toc.on{display:block}}
+#toc a{display:block;padding:4px 0 4px 12px;border-left:2px solid var(--line);color:var(--faint);text-decoration:none}
+#toc a.h3{padding-left:24px}
+#toc a:hover{color:var(--fg)}
+#toc a.cur{color:var(--fg);border-left-color:var(--accent)}
+
+/* rendered markdown */
+.md{overflow-wrap:break-word}
+.md>:first-child{margin-top:0!important}
+.md h1,.md h2,.md h3,.md h4,.md h5,.md h6{position:relative;margin:1.9em 0 .6em;line-height:1.3;font-weight:650;letter-spacing:-.01em;scroll-margin-top:72px}
+.md h1{font-size:2.05em;letter-spacing:-.022em;margin-top:.4em}
+.md h2{font-size:1.5em;padding-bottom:.3em;border-bottom:1px solid var(--line)}
+.md h3{font-size:1.22em}
+.md h4{font-size:1.04em}
+.md h5,.md h6{font-size:.95em;color:var(--muted)}
+.md .anchor{position:absolute;right:100%;padding-right:.3em;color:var(--faint);text-decoration:none;font-weight:400;opacity:0}
+.md .anchor::before{content:"#"}
+.md :hover>.anchor{opacity:1}
+.md p,.md ul,.md ol,.md dl,.md blockquote,.md pre,.md .table,.md details,.md hr{margin:0 0 1.1em}
+.md a{color:var(--accent);text-decoration:underline;text-decoration-color:color-mix(in srgb,var(--accent) 35%,transparent);text-underline-offset:2px}
+.md a:hover{text-decoration-color:currentColor}
+.md strong{font-weight:650}
+.md ul,.md ol{padding-left:1.65em}
+.md li+li{margin-top:.25em}
+.md li>ul,.md li>ol,.md li>p{margin-top:.25em;margin-bottom:0}
+.md li:has(>input[type=checkbox]),.md li:has(>p>input[type=checkbox]:first-child){list-style:none;margin-left:-1.35em}
+.md input[type=checkbox]{margin:0 .5em 0 0;vertical-align:-.1em;accent-color:var(--accent)}
+.md blockquote{padding:.15em 1.1em;border-left:3px solid var(--line);color:var(--muted);margin-left:0;margin-right:0}
+.md blockquote>:last-child{margin-bottom:0}
+.md hr{height:0;border:0;border-top:1px solid var(--line);margin:2.2em 0}
+.md code{font:.86em/1.5 var(--mono);background:var(--code);padding:.14em .38em;border-radius:5px}
+.md pre{background:var(--soft);border:1px solid var(--line);border-radius:9px;padding:14px 16px;overflow:auto;line-height:1.55}
+.md pre code{background:none;padding:0;border-radius:0;font-size:.85em}
+.md kbd{font:.8em var(--mono);padding:.1em .45em;border:1px solid var(--line);border-bottom-width:2px;border-radius:5px;background:var(--soft)}
+.md mark{background:#fff3a3;color:#1f2328;padding:0 .15em;border-radius:3px}
+.md img{max-width:100%;height:auto;border-radius:4px;background:var(--imgbg);padding:var(--imgpad)}
+.md p:has(>img:only-child){text-align:center}
+.md .table{overflow-x:auto}
+.md table{border-collapse:collapse;font-size:.94em;line-height:1.55}
+.md th,.md td{border:1px solid var(--line);padding:.45em .8em;vertical-align:top}
+.md th{background:var(--soft);font-weight:600}
+.md th:not([align]){text-align:left}
+.md tbody tr:nth-child(2n){background:color-mix(in srgb,var(--soft) 55%,transparent)}
+.md details{border:1px solid var(--line);border-radius:9px;padding:.5em 1em}
+.md summary{cursor:pointer;font-weight:600}
+.md dt{font-weight:600}
+.md dd{margin:0 0 .6em 1.4em}
+.math:not(.ok){font:.88em var(--mono);color:var(--muted)}
+.math.display{display:block;margin:0 0 1.1em;overflow-x:auto;overflow-y:hidden;text-align:center}
+.math.display:not(.ok){text-align:left;white-space:pre-wrap}
+.math .katex-display{margin:0}
+
+/* home, folder lists, notices */
+.note{border:1px solid var(--line);border-radius:12px;padding:22px 24px;background:var(--soft)}
+.note h2{margin:0 0 .5em;font-size:1.25em;border:0;padding:0}
+.note p:last-child{margin-bottom:0}
+.link{font:inherit;color:var(--accent);background:none;border:0;padding:0;cursor:pointer;text-decoration:underline;text-underline-offset:2px}
+.link.quiet{color:var(--faint);text-decoration:none}
+.link.quiet:hover{color:var(--fg)}
+.idx h1{margin:.2em 0 .7em;font-size:1.75em;overflow-wrap:anywhere}
+.q{width:100%;font:inherit;font-size:15px;padding:10px 14px;border:1px solid var(--line);border-radius:10px;background:var(--bg);color:var(--fg);outline:none}
+.q:focus{border-color:var(--accent);box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 18%,transparent)}
+.row{display:flex;gap:10px}
+.row .q{flex:1;min-width:0}
+.primary{flex:none;font:inherit;font-size:15px;font-weight:600;padding:0 18px;border:0;border-radius:10px;background:var(--accent);color:var(--bg);cursor:pointer}
+.primary:hover{filter:brightness(1.08)}
+.idx .files{list-style:none;margin:10px -12px 0;padding:0}
+.idx li+li{margin-top:0}
+.files a{display:flex;align-items:center;gap:11px;padding:8px 12px;border-radius:8px;color:var(--fg);text-decoration:none}
+.files a:hover,.files a.sel{background:var(--soft)}
+.files .ic{flex:none;color:var(--faint)}
+.files .n{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.files .d{color:var(--faint)}
+.files .loc{margin-left:8px;font-size:.86em;color:var(--faint)}
+.files time{margin-left:auto;padding-left:12px;flex:none;font-size:.84em;color:var(--faint);font-variant-numeric:tabular-nums}
+.hint{margin:14px 0 0;font-size:.9em;color:var(--faint)}
+.sec{display:flex;align-items:baseline;justify-content:space-between;margin:30px 0 4px;font-size:12px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--faint)}
+.sec .link{font-size:12px;letter-spacing:0;text-transform:none;font-weight:400}
+.idx .places{display:flex;flex-wrap:wrap;gap:8px;list-style:none;padding:0;margin:10px 0 0}
+.places a{display:inline-flex;align-items:center;gap:8px;padding:6px 14px 6px 11px;border:1px solid var(--line);border-radius:999px;color:var(--fg);text-decoration:none;font-size:14.5px}
+.places a:hover{background:var(--soft)}
+.places .ic{color:var(--faint)}
+.foot{display:flex;flex-wrap:wrap;gap:8px 20px;justify-content:space-between;margin-top:44px;padding-top:16px;border-top:1px solid var(--line);font-size:13.5px;color:var(--faint)}
+
+/* drag & drop */
+#drop{position:fixed;inset:10px;z-index:50;display:none;place-items:center;border:2px dashed var(--accent);border-radius:16px;
+  background:color-mix(in srgb,var(--bg) 82%,transparent);color:var(--accent);font-size:1.15em;font-weight:600;pointer-events:none}
+body.dragging #drop{display:grid}
+
+@media print{
+  :root,:root[data-theme]{--bg:#fff;--fg:#000;--muted:#444;--faint:#777;--line:#bbb;--soft:#f4f4f4;--code:#f0f0f0;--accent:#000;--imgbg:transparent;--imgpad:0;color-scheme:light}
+  #bar,#toc,#drop,.md .anchor{display:none!important}
+  body{font-size:11pt;line-height:1.55}
+  main{max-width:none;padding:0}
+  .md a{text-decoration:none}
+  .md pre{white-space:pre-wrap}
+  .md pre,.md blockquote,.md .table,.md img,.md .math.display{break-inside:avoid}
+  .md h1,.md h2,.md h3,.md h4{break-after:avoid}
+}
+</style>
+</head>
+<body>
+<header id="bar">
+  <a id="home" href="md.html" title="Home"><svg viewBox="0 0 208 128"><path d="M30 98V30h20l20 25 20-25h20v68H90V59L70 84 50 59v39zm125 0l-30-33h20V30h20v35h20z"/></svg></a>
+  <nav id="crumbs"></nav>
+  <span class="grow"></span>
+  <span id="st" hidden><i></i><span></span></span>
+  <button class="btn" title="Open a file (Ctrl+O)" data-pick><svg viewBox="0 0 16 16"><path d="M1.5 13V3.5h4.3l1.5 1.6h5.2V7"/><path d="M1.5 13l2.2-5.5h11L12.5 13z"/></svg></button>
+  <a id="raw" class="btn" title="View source" hidden><svg viewBox="0 0 16 16"><path d="M5.5 4 2 8l3.5 4M10.5 4 14 8l-3.5 4"/></svg></a>
+  <button id="print" class="btn" title="Print (Ctrl+P)"><svg viewBox="0 0 16 16"><path d="M4.5 6V2h7v4M4.5 12H2.5V6.5h11V12h-2"/><path d="M4.5 9.5h7V14h-7z"/></svg></button>
+  <button id="theme" class="btn" title="Light / dark"><svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="5.8"/><path d="M8 2.2a5.8 5.8 0 0 0 0 11.6z" fill="currentColor"/></svg></button>
+</header>
+<nav id="toc"></nav>
+<main><article id="doc" class="md"></article></main>
+<div id="drop">Drop a Markdown file to view it</div>
+<input id="pick" type="file" accept=".md,.markdown,.txt,text/markdown,text/plain" hidden>
+<script>/*@@MARKED@@*/</script>
+<script>
+(() => {
+'use strict';
+/* This page is the UI of MarkdownViewer.exe, running in its WebView2 window. Paths look like
+   "C:/Users/me/notes.md" (or "UNC/server/share/x.md"); the app answers requests for
+   "/C:/Users/me/notes.md" straight from disk, in-process, and posts "changed" when the file changes. */
+const $ = s => document.querySelector(s);
+const doc = $('#doc'), toc = $('#toc'), st = $('#st'), crumbs = $('#crumbs');
+const SELF = location.pathname.split('/').pop() || 'md.html';
+const BASE = new URL('/', location.href);
+const MD_RE = /\.(md|markdown|mdown|mkd)$/i;
+const KATEX = '/katex/';
+const HOST = window.chrome && window.chrome.webview;                        // the app window
+const send = msg => { if (HOST) HOST.postMessage(msg); };
+let onChange = null;                                                        // what to redo when the app says "changed"
+if (HOST) HOST.addEventListener('message', e => { if (e.data === 'changed' && onChange) onChange(); });
+const dec = s => { try { return decodeURIComponent(s); } catch { return s; } };
+const enc = p => p.split('/').map(encodeURIComponent).join('/');              // for fetching: "C%3A/Users/…"
+const viewHref = p => SELF + '?' + enc(p).replace(/%3A/gi, ':');              // for the address bar: "md.html?C:/Users/…"
+const fileURL = p => new URL(enc(p), BASE);
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
+const ICON = {
+  doc: '<svg class="ic" viewBox="0 0 16 16"><path d="M4 1.5h5.5l3 3v10H4z"/><path d="M9.5 1.5v3h3"/></svg>',
+  dir: '<svg class="ic" viewBox="0 0 16 16"><path d="M1.5 3.5h4.3l1.5 1.6h7.2v7.4h-13z"/></svg>',
+};
+let timer = 0;
+
+/* "C:\a\b.md", "\"C:\a\b.md\"", "file:///C:/a/b.md", "\\srv\share\x.md" -> "C:/a/b.md" / "UNC/srv/share/x.md" */
+function normPath(s) {
+  s = s.trim().replace(/^"(.*)"$/, '$1');
+  if (/^file:/i.test(s)) s = dec(s.replace(/^file:\/*/i, ''));
+  s = s.replace(/\\/g, '/');
+  if (s.startsWith('//')) s = 'UNC/' + s.replace(/^\/+/, '');
+  return s.replace(/^\/+(?=[a-z]:)/i, '').replace(/^([a-z]):/, (m, d) => d.toUpperCase() + ':');
+}
+const looksLikePath = s => /^\s*"?(?:[a-z]:[\\/]|\\\\|file:)/i.test(s);
+const parentOf = p => p.replace(/\/[^/]*\/?$/, '/');
+
+/* ---------- Markdown + $math$ ---------- */
+const mathHTML = (tex, display) => `<span class="math${display ? ' display' : ''}">${esc(tex)}</span>`;
+marked.use({
+  gfm: true,
+  extensions: [{
+    name: 'mathBlock', level: 'block',
+    start(src) { const i = src.search(/\n {0,3}(?:\$\$|\\\[)/); return i < 0 ? undefined : i + 1; },
+    tokenizer(src) {
+      const m = /^ {0,3}(?:\$\$([\s\S]+?)\$\$|\\\[([\s\S]+?)\\\])[ \t]*(?:\n+|$)/.exec(src);
+      if (m) return { type: 'mathBlock', raw: m[0], text: (m[1] ?? m[2]).trim() };
+    },
+    renderer: t => mathHTML(t.text, true) + '\n',
+  }, {
+    name: 'mathInline', level: 'inline',
+    start(src) { const i = src.search(/\$|\\[([]/); return i < 0 ? undefined : i; },
+    tokenizer(src) {
+      let m = /^\$\$([\s\S]+?)\$\$/.exec(src) || /^\\\[([\s\S]+?)\\\]/.exec(src);
+      if (m) return { type: 'mathInline', raw: m[0], text: m[1].trim(), display: true };
+      m = /^\$(?![\s$])((?:\\[\s\S]|[^\\$])+?)(?<!\s)\$(?!\d)/.exec(src) || /^\\\(([\s\S]+?)\\\)/.exec(src);
+      if (m) return { type: 'mathInline', raw: m[0], text: m[1], display: false };
+    },
+    renderer: t => mathHTML(t.text, t.display),
+  }],
+});
+
+let katexP = null;
+function loadKatex() {
+  return katexP ||= new Promise((ok, no) => {
+    const css = Object.assign(document.createElement('link'), { rel: 'stylesheet', href: KATEX + 'katex.min.css' });
+    const js = Object.assign(document.createElement('script'), { src: KATEX + 'katex.min.js' });
+    let n = 2;
+    css.onload = js.onload = () => --n || ok();
+    css.onerror = js.onerror = () => { katexP = null; no(); };
+    document.head.append(css, js);
+  });
+}
+function typeset(els) {
+  for (const el of els) {
+    if (el.classList.contains('ok')) continue;
+    try {
+      katex.render(el.textContent, el, { displayMode: el.classList.contains('display'), throwOnError: false });
+      el.classList.add('ok');
+    } catch {}
+  }
+}
+const plain = el => { const c = el.cloneNode(true); c.querySelectorAll('.katex-mathml').forEach(n => n.remove()); return c.textContent.trim(); };
+
+/* Markdown text -> DOM fragment with links, images, tables and headings fixed up. */
+function build(src, url) {
+  src = src.replace(/^\uFEFF/, '').replace(/^---\r?\n[\s\S]*?\r?\n(?:---|\.\.\.)[ \t]*(?:\r?\n|$)/, '');
+  const t = document.createElement('template');
+  t.innerHTML = marked.parse(src);
+  const f = t.content;
+  const resolve = h => {
+    let u = new URL(h, url);
+    if (u.protocol === 'file:') u = new URL(fileURL(normPath(u.href)).href + u.search + u.hash);
+    return u;
+  };
+  for (const a of f.querySelectorAll('a[href]')) {
+    const h = a.getAttribute('href');
+    if (!h || h[0] === '#') continue;
+    let u; try { u = resolve(h); } catch { continue; }
+    if (u.origin === location.origin && MD_RE.test(u.pathname)) {
+      a.setAttribute('href', viewHref(dec(u.pathname.slice(1))) + u.hash);
+    } else {
+      a.setAttribute('href', u.href);
+      if (/^https?:$/.test(u.protocol) && u.origin !== location.origin) { a.target = '_blank'; a.rel = 'noopener'; }
+    }
+  }
+  for (const el of f.querySelectorAll('[src]')) {
+    const s = el.getAttribute('src');
+    if (s && !/^(?:data|blob):/i.test(s)) try { el.setAttribute('src', resolve(s).href); } catch {}
+  }
+  for (const tb of f.querySelectorAll('table')) {
+    const w = document.createElement('div'); w.className = 'table'; tb.replaceWith(w); w.append(tb);
+  }
+  const seen = new Map();
+  for (const h of f.querySelectorAll('h1,h2,h3,h4,h5,h6')) {
+    let id = h.id || h.textContent.trim().toLowerCase().replace(/[^\p{L}\p{M}\p{N}\s_-]/gu, '').replace(/\s+/g, '-') || 'section';
+    const n = seen.get(id) || 0; seen.set(id, n + 1);
+    if (n) id += '-' + n;
+    h.id = id;
+    const a = document.createElement('a');
+    a.className = 'anchor'; a.href = '#' + id; a.setAttribute('aria-hidden', 'true');
+    h.prepend(a);
+  }
+  if (window.katex) typeset(f.querySelectorAll('.math'));
+  return f;
+}
+
+/* Replace only the top-level blocks that changed, so live reloads don't jump or re-load images. */
+function patch(el, frag) {
+  const a = [...el.childNodes], b = [...frag.childNodes];
+  let i = 0, j = 0;
+  while (i < a.length && i < b.length && a[i].isEqualNode(b[i])) i++;
+  while (j < a.length - i && j < b.length - i && a[a.length - 1 - j].isEqualNode(b[b.length - 1 - j])) j++;
+  const ref = a[a.length - j] ?? null;
+  a.slice(i, a.length - j).forEach(n => n.remove());
+  const ins = document.createDocumentFragment();
+  ins.append(...b.slice(i, b.length - j));
+  el.insertBefore(ins, ref);
+}
+
+function show(src, url, name, first) {
+  patch(doc, build(src, url));
+  if (!window.katex && doc.querySelector('.math')) {
+    loadKatex().then(() => { typeset(doc.querySelectorAll('.math')); buildToc(); }, () => {});
+  }
+  const h1 = doc.querySelector('h1');
+  document.title = h1 ? plain(h1) : name.split('/').pop();
+  buildToc();
+  if (first && location.hash) document.getElementById(dec(location.hash.slice(1)))?.scrollIntoView();
+}
+
+/* ---------- table of contents (wide screens) ---------- */
+let spyList = [], raf = 0;
+function buildToc() {
+  const hs = [...doc.querySelectorAll('h2,h3')];
+  const on = hs.length >= 3;
+  toc.classList.toggle('on', on);
+  toc.replaceChildren(...(on ? hs.map(h => {
+    const a = document.createElement('a');
+    a.href = '#' + h.id; a.textContent = plain(h); a.className = h.localName;
+    return a;
+  }) : []));
+  spyList = on ? hs : [];
+  spy();
+}
+function spy() {
+  let cur = null;
+  for (const h of spyList) { if (h.getBoundingClientRect().top < 110) cur = h; else break; }
+  for (const a of toc.children) a.classList.toggle('cur', !!cur && a.getAttribute('href') === '#' + cur.id);
+}
+addEventListener('scroll', () => { if (spyList.length && !raf) raf = requestAnimationFrame(() => { raf = 0; spy(); }); }, { passive: true });
+
+/* ---------- top bar ---------- */
+function setCrumbs(path) {
+  const segs = path.split('/').filter(Boolean);
+  const link = (text, upto, cls) => {
+    const a = document.createElement('a');
+    a.textContent = text; a.href = viewHref(segs.slice(0, upto).join('/') + '/');
+    if (cls) a.className = cls;
+    return a;
+  };
+  const parts = segs.map((s, i) => {
+    if (i < segs.length - 1) return link(s, i + 1, i && i < segs.length - 2 ? 'mid' : '');
+    const cur = document.createElement('span'); cur.className = 'cur'; cur.textContent = s;
+    return cur;
+  });
+  if (parts.length > 5) parts.splice(1, parts.length - 4, link('…', segs.length - 3, 'mid'));   // C: / … / folder / folder / file
+  crumbs.title = path;
+  crumbs.replaceChildren(...parts.flatMap((el, i) => {
+    if (!i) return [el];
+    const sep = document.createElement('span'); sep.className = 'sep' + (el.classList.contains('mid') ? ' mid' : ''); sep.textContent = '/';
+    return [sep, el];
+  }));
+}
+function status(cls, text) {
+  st.hidden = false;
+  st.className = '';
+  void st.offsetWidth;                                  // restart the pulse animation
+  st.className = cls;
+  st.lastChild.textContent = text;
+}
+$('#home').href = SELF;
+$('#print').onclick = () => print();
+const darkQuery = matchMedia('(prefers-color-scheme: dark)');
+const theme = () => document.documentElement.dataset.theme || (darkQuery.matches ? 'dark' : 'light');
+const syncTheme = () => send('theme:' + theme());                     // the app matches its title bar
+darkQuery.addEventListener('change', syncTheme);
+$('#theme').onclick = () => {
+  const root = document.documentElement;
+  root.dataset.theme = theme() === 'dark' ? 'light' : 'dark';
+  try { localStorage.setItem('md-theme', root.dataset.theme); } catch {}
+  syncTheme();
+};
+
+/* ---------- recently opened files (kept by the app) ---------- */
+const readRecent = () => { try { return JSON.parse(localStorage.getItem('md-recent') || '[]'); } catch { return []; } };
+const writeRecent = r => { try { localStorage.setItem('md-recent', JSON.stringify(r.slice(0, 40))); } catch {} };
+const remember = p => writeRecent([{ p, t: Date.now() }, ...readRecent().filter(r => r.p.toLowerCase() !== p.toLowerCase())]);
+
+/* ---------- one document, reloaded when the app says it changed (no polling) ---------- */
+async function openDoc(path) {
+  const url = fileURL(path);
+  setCrumbs(path);
+  const raw = $('#raw'); raw.hidden = false; raw.href = url.href + '?raw';
+  let text = null, state = '', liveText = 'Live';
+  const say = (cls, msg) => { if (state !== cls + msg) { state = cls + msg; status(cls, msg); } };
+  const load = async () => {
+    let r;
+    try { r = await fetch(url, { cache: 'no-store' }); } catch (e) { return text === null ? fail(path, e) : say('err', 'Can’t read file'); }
+    if (!r.ok) return text === null ? fail(path, r.status) : say('err', r.status === 404 ? 'File missing' : 'Error ' + r.status);
+    const t = await r.text();
+    if (t === text) return say('live', liveText);
+    const first = text === null;
+    text = t;
+    show(t, url, path, first);
+    if (first) remember(path);
+    else liveText = 'Updated ' + new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    say(first ? 'live' : 'live flash', liveText);
+  };
+  await load();
+  if (text === null) return;
+  onChange = load;
+  send('watch:' + path);
+}
+
+function fail(path, e) {
+  document.title = 'Not found';
+  const why = e === 404 ? `There's no file at <b>${esc(path)}</b>.`
+    : `Couldn't read <b>${esc(path)}</b>${typeof e === 'number' ? ` (error ${e})` : ''}.`;
+  doc.innerHTML = `<div class="note"><h2>Can't open ${esc(path.split('/').pop() || path)}</h2><p>${why}</p>
+    <p><a href="${esc(viewHref(parentOf(path)))}">Show this folder</a> · <button class="link" data-pick>Open another file…</button> ·
+    <a href="${esc(SELF)}">Home</a></p></div>`;
+}
+
+async function openLocal(file) {                        // a dropped file without a known path (outside the app)
+  onChange = null;
+  setCrumbs(file.name);
+  $('#raw').hidden = true; st.hidden = true;
+  show(await file.text(), BASE, file.name, true);
+  scrollTo(0, 0);
+}
+
+/* ---------- lists: home (recent files) and folders ---------- */
+function ago(t) {
+  const s = Date.now() / 1000 - t;
+  if (s < 45) return 'just now';
+  if (s < 3600) return Math.round(s / 60) + ' min ago';
+  if (s < 86400) return Math.round(s / 3600) + ' h ago';
+  if (s < 604800) return Math.round(s / 86400) + ' d ago';
+  return new Date(t * 1000).toLocaleDateString();
+}
+
+/* A filterable, keyboard-navigable list. items(): [{href, html, key, t, title}] */
+function fileList(qi, ul, hint, items, emptyText) {
+  let shown = [], sel = 0;
+  const draw = () => {
+    const terms = qi.value.toLowerCase().split(/\s+/).filter(Boolean);
+    shown = items().filter(it => terms.every(t => it.key.includes(t)));
+    sel = Math.min(sel, Math.max(0, shown.length - 1));
+    ul.replaceChildren(...shown.slice(0, 1000).map((it, i) => {
+      const li = document.createElement('li');
+      li.innerHTML = `<a href="${esc(it.href)}" title="${esc(it.title)}"${i === sel ? ' class="sel"' : ''}>${ICON.doc}` +
+        `<span class="n">${it.html}</span>${it.t ? `<time>${ago(it.t)}</time>` : ''}</a>`;
+      return li;
+    }));
+    hint.textContent = shown.length ? '' : emptyText(terms.length > 0);
+  };
+  qi.addEventListener('input', () => { sel = 0; draw(); });
+  qi.addEventListener('keydown', e => {
+    if (e.defaultPrevented) return;
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      e.preventDefault();
+      sel = Math.max(0, Math.min(shown.length - 1, sel + (e.key === 'ArrowDown' ? 1 : -1)));
+      draw();
+      ul.querySelector('.sel')?.scrollIntoView({ block: 'nearest' });
+    } else if (e.key === 'Enter' && shown[sel]) location.href = shown[sel].href;
+  });
+  return draw;
+}
+
+async function showHome() {
+  setCrumbs('');
+  document.title = 'Markdown Viewer';
+  const box = document.createElement('section');
+  box.className = 'idx';
+  box.innerHTML = `<h1>Markdown Viewer</h1>
+    <div class="row"><input class="q" type="search" placeholder="Paste a file or folder path, or filter recent files" autocomplete="off" spellcheck="false">
+      <button class="primary" data-pick>Open file…</button></div>
+    <div class="sec"><span>Recent</span><button class="link quiet" data-clear hidden>Clear</button></div>
+    <ul class="files"></ul><p class="hint"></p>
+    <div class="sec"><span>Folders</span></div><ul class="places"></ul>
+    <div class="foot"><span>Ctrl+O open · drop a .md anywhere · Alt+← back · Ctrl+P print · Ctrl+W close</span></div>`;
+  doc.replaceChildren(box);
+  const qi = box.querySelector('.q'), ul = box.querySelector('.files'), hint = box.querySelector('.hint');
+  const clear = box.querySelector('[data-clear]'), places = box.querySelector('.places');
+  qi.addEventListener('keydown', e => {
+    if (e.key === 'Enter' && looksLikePath(qi.value)) { e.preventDefault(); location.href = viewHref(normPath(qi.value)); }
+  });
+  const draw = fileList(qi, ul, hint, () => readRecent().map(r => {
+    const parts = r.p.split('/'), name = parts.pop(), where = parts.slice(-2).join('/');
+    return { href: viewHref(r.p), key: r.p.toLowerCase(), t: r.t / 1000, title: r.p,
+      html: `${esc(name.replace(MD_RE, ''))}<span class="loc">${esc(where)}</span>` };
+  }), filtered => looksLikePath(qi.value) ? 'Press Enter to open this path.' : filtered ? 'No matches.' : 'Files you open show up here.');
+  draw();
+  clear.hidden = !readRecent().length;
+  clear.onclick = () => { writeRecent([]); clear.hidden = true; draw(); };
+  qi.focus({ preventScroll: true });
+  try {
+    const me = await (await fetch('__md/id', { cache: 'no-store' })).json();
+    places.innerHTML = me.places.map(p => `<li><a href="${esc(viewHref(p.p))}" title="${esc(p.p)}">${ICON.dir}${esc(p.name)}</a></li>`).join('');
+  } catch {}
+}
+
+async function showFolder(prefix) {
+  setCrumbs(prefix);
+  const name = prefix.replace(/\/$/, '').split('/').pop();
+  document.title = name;
+  const box = document.createElement('section');
+  box.className = 'idx';
+  box.innerHTML = `<h1></h1><input class="q" type="search" placeholder="Filter files   ( / )" autocomplete="off" spellcheck="false">
+    <ul class="files"></ul><p class="hint"></p><p class="hint" data-more></p>`;
+  box.firstChild.textContent = name;
+  doc.replaceChildren(box);
+  const qi = box.querySelector('.q'), ul = box.querySelector('.files'), hint = box.querySelector('.hint'), more = box.querySelector('[data-more]');
+  let data = { files: [] }, key = '', drawn = 0;
+  const draw = fileList(qi, ul, hint, () => data.files.map(f => {
+    const rel = f.p.slice(prefix.length), cut = rel.lastIndexOf('/') + 1;
+    return { href: viewHref(f.p), key: rel.toLowerCase(), t: f.t, title: f.p,
+      html: (cut ? `<span class="d">${esc(rel.slice(0, cut))}</span>` : '') + esc(rel.slice(cut).replace(MD_RE, '')) };
+  }), filtered => filtered ? 'No matches.' : 'No Markdown files in this folder yet. They show up here as soon as they are saved.');
+  const load = async () => {
+    const r = await fetch('__md/list?dir=' + encodeURIComponent(prefix), { cache: 'no-store' });
+    if (!r.ok) throw r.status;
+    const d = await r.json(), k = JSON.stringify(d.files);
+    if (k !== key || Date.now() - drawn > 30000) {
+      key = k; drawn = Date.now();
+      data = d; data.files.sort((a, b) => b.t - a.t);
+      draw();
+      more.textContent = d.truncated ? `Big folder: showing the first ${d.files.length} Markdown files found. Open a subfolder to see more.` : '';
+    }
+    return d;
+  };
+  try {
+    const d = await load();
+    qi.focus({ preventScroll: true });
+    timer = setInterval(draw, 60000);                    // keep "5 min ago" labels current
+    if (!d.truncated) { onChange = () => load().catch(() => {}); send('watchdir:' + prefix); }
+  } catch (e) {
+    hint.textContent = e === 404 ? 'This folder does not exist.' : `Couldn't list this folder (${e}).`;
+  }
+}
+
+/* ---------- drop / pick a file, buttons ---------- */
+let depth = 0;
+const hasFiles = e => [...(e.dataTransfer?.types || [])].includes('Files');
+const dragOff = () => { depth = 0; document.body.classList.remove('dragging'); };
+addEventListener('dragenter', e => { if (hasFiles(e)) { depth++; document.body.classList.add('dragging'); } });
+addEventListener('dragleave', e => { if (hasFiles(e) && --depth <= 0) dragOff(); });
+addEventListener('dragover', e => { if (hasFiles(e)) e.preventDefault(); });
+addEventListener('drop', e => {
+  if (!hasFiles(e)) return;
+  e.preventDefault(); dragOff();
+  const f = e.dataTransfer.files[0];
+  if (!f) return;
+  if (HOST && HOST.postMessageWithAdditionalObjects) HOST.postMessageWithAdditionalObjects('open', [f]);   // the app knows its path
+  else openLocal(f);
+});
+const pick = () => HOST ? send('pick') : $('#pick').click();              // the app shows the Windows Open dialog
+$('#pick').onchange = e => { const f = e.target.files[0]; if (f) openLocal(f); e.target.value = ''; };
+document.addEventListener('click', e => { if (e.target.closest('[data-pick]')) pick(); });
+addEventListener('keydown', e => {
+  if (e.ctrlKey && !e.shiftKey && !e.altKey && (e.key === 'o' || e.key === 'O')) { e.preventDefault(); pick(); }
+  else if (e.ctrlKey && !e.shiftKey && !e.altKey && (e.key === 'w' || e.key === 'W')) { e.preventDefault(); send('close'); }
+  else if (e.key === '/' && !/^(INPUT|TEXTAREA)$/.test(document.activeElement?.tagName)) { const q = $('.q'); if (q) { e.preventDefault(); q.focus(); } }
+});
+
+/* ---------- start: md.html?C:/path/file.md  |  md.html?C:/folder/  |  md.html ---------- */
+let q = location.search.slice(1);
+if (/^(?:file|f|path|p)=/i.test(q)) q = q.slice(q.indexOf('=') + 1);
+q = normPath(dec(q.split('&')[0]));
+syncTheme();
+if (!HOST) {
+  doc.innerHTML = `<div class="note"><h2>Markdown Viewer</h2><p>This page is the inside of the Markdown Viewer app. Open the app from
+    the Start menu (search “Markdown Viewer”), or drop a .md file here / <button class="link" data-pick>choose one</button>.</p></div>`;
+} else if (!q) showHome();
+else if (q.endsWith('/')) showFolder(q);
+else openDoc(q);
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,5 @@
+# Build output
+build/
+dist/
+# WebView2 profile created when running from the source tree
+data/
